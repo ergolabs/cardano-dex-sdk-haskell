@@ -99,6 +99,8 @@ library
         containers,
         freer-simple,
         plutus-core,
+        hashable == 1.3.0.0,
         extra,
         cardano-api,
-        text
+        text,
+        rio

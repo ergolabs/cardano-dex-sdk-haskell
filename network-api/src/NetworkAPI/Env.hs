@@ -17,7 +17,7 @@ data SystemEnv = SystemEnv
   , pools             :: Set.Set PoolId
   , eraHistory        :: EraHistory CardanoMode
   , collateralPercent :: Natural
-  }
+  } deriving (Show)
 
 toNetworkApiSystemEnv :: Explorer.SystemEnv -> SystemEnv
 toNetworkApiSystemEnv explorerSysenv =

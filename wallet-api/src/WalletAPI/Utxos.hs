@@ -19,11 +19,15 @@ import qualified Explorer.Models      as Explorer
 import qualified Explorer.Class       as Explorer
 
 data WalletOutputs f = WalletOutputs
-  { selectUtxos :: Value -> f (Maybe (Set.Set FullTxOut))
+  { selectUtxos          :: Value               -> f (Maybe (Set.Set FullTxOut)),
+    selectUxtosByFilter  :: (FullTxOut -> Bool) -> f (Maybe (Set.Set FullTxOut))
   }
 
 mkWalletOutputs :: MonadIO f => Explorer f -> UtxoStore f -> Hash PaymentKey -> WalletOutputs f
-mkWalletOutputs explorer ustore pkh = WalletOutputs $ selectUtxos'' explorer ustore pkh
+mkWalletOutputs explorer ustore pkh = WalletOutputs
+  { selectUtxos = selectUtxos'' explorer ustore pkh
+  , selectUxtosByFilter = selectUxtosByFilter'' explorer ustore pkh
+  }
 
 selectUtxos'' :: Monad f => Explorer f -> UtxoStore f -> Hash PaymentKey -> Value -> f (Maybe (Set.Set FullTxOut))
 selectUtxos'' explorer@Explorer{..} ustore@UtxoStore{..} pkh requiredValue = do
@@ -59,3 +63,17 @@ selectUtxos'' explorer@Explorer{..} ustore@UtxoStore{..} pkh requiredValue = do
     Just outs -> pure $ Just $ Set.fromList outs
     Nothing   -> fetchUtxos 0 batchSize >> selectUtxos'' explorer ustore pkh requiredValue
       where batchSize = 20
+
+selectUxtosByFilter'' :: forall f. MonadIO f => Explorer f -> UtxoStore f -> Hash PaymentKey -> (FullTxOut -> Bool) -> f (Maybe (Set.Set FullTxOut))
+selectUxtosByFilter'' explorer@Explorer{..} ustore@UtxoStore{..} pkh predicate = do
+  let
+    paging  = Explorer.Paging 0 20
+    mkPCred = Explorer.PaymentCred "addr_test1qrt56fk9q2w09yqffl8p5pnsmfeknwgzv4calwthcmazxnl0pwy4t9rk9qlzhd49k40p0yxrsm5c5f8puxlxc9hrqj4sy2tu8f" -- debug . T.decodeUtf8 . convertToBase Base16 . serialiseToRawBytes
+  _   <- liftIO $ print ("paging: " ++ (show paging))
+  _   <- liftIO $ print ("mkPCred: " ++ (show (mkPCred)))
+  utxoBatch <- getUnspentOutputsByPCred (mkPCred) paging
+  let utxos = map (Explorer.toCardanoTx) (Explorer.items utxoBatch)
+      filtered = RIO.filter predicate utxos
+  if (null filtered)
+  then pure Nothing
+  else pure $ Just $ Set.fromList filtered

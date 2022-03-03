@@ -13,18 +13,18 @@ import qualified Plutus.V1.Ledger.Credential as P
 
 import CardanoTx.ToPlutus (ToPlutus(toPlutus))
 
-mkUnbalancedTx :: Set.Set Sdk.FullCollateralTxIn -> Sdk.TxCandidate -> P.UnbalancedTx
-mkUnbalancedTx collateral tx@Sdk.TxCandidate{..} =
-    P.UnbalancedTx
-      { unBalancedTxTx                  = mkPlutusTx collateral tx
-      , unBalancedTxRequiredSignatories = collectKeys allInputs
-      , unBalancedTxUtxoIndex           = Map.fromList $ allInputs <&> (\fout -> (Sdk.fullTxOutRef fout, toPlutus fout))
-      , unBalancedTxValidityTimeRange   = P.always -- todo
-      }
-  where
-    inputs    = Set.elems txCandidateInputs <&> Sdk.fullTxInTxOut
-    cinputs   = Set.elems collateral <&> Sdk.fullCollateralTxInTxOut
-    allInputs = inputs ++ cinputs
+--mkUnbalancedTx :: Set.Set Sdk.FullCollateralTxIn -> Sdk.TxCandidate -> P.UnbalancedTx
+--mkUnbalancedTx collateral tx@Sdk.TxCandidate{..} =
+--    P.UnbalancedTx
+--      { unBalancedTxTx                  = mkPlutusTx collateral tx
+--      , unBalancedTxRequiredSignatories = collectKeys allInputs
+--      , unBalancedTxUtxoIndex           = Map.fromList $ allInputs <&> (\fout -> (Sdk.fullTxOutRef fout, toPlutus fout))
+--      , unBalancedTxValidityTimeRange   = P.always -- todo
+--      }
+--  where
+--    inputs    = Set.elems txCandidateInputs <&> Sdk.fullTxInTxOut
+--    cinputs   = Set.elems collateral <&> Sdk.fullCollateralTxInTxOut
+--    allInputs = inputs ++ cinputs
 
 mkPlutusTx :: Set.Set Sdk.FullCollateralTxIn -> Sdk.TxCandidate -> P.Tx
 mkPlutusTx collateral Sdk.TxCandidate{..} =
@@ -41,10 +41,10 @@ mkPlutusTx collateral Sdk.TxCandidate{..} =
     , txData        = collectOutputsData txCandidateOutputs
     }
 
-collectKeys :: [Sdk.FullTxOut] -> Map.Map P.PubKeyHash (Maybe P.PubKey)
+collectKeys :: [Sdk.FullTxOut] -> Map.Map P.PaymentPubKeyHash (Maybe P.PaymentPubKey)
 collectKeys inputs = Map.fromList $ inputs >>= extractPkh
   where
-    extractPkh Sdk.FullTxOut{fullTxOutAddress=P.Address (P.PubKeyCredential pkh) _} = [(pkh, Nothing)]
+    extractPkh Sdk.FullTxOut{fullTxOutAddress=P.Address (P.PubKeyCredential pkh) _} = [(P.PaymentPubKeyHash pkh, Nothing)]
     extractPkh _ = []
 
 collectOutputsData :: [Sdk.TxOutCandidate] -> Map.Map P.DatumHash P.Datum

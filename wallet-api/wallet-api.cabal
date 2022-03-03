@@ -108,3 +108,4 @@ library
                  ,  cardano-api
                  ,  text
                  ,  dhall
+                 ,  common

@@ -96,4 +96,6 @@ library
         plutus-core,
         extra,
         cardano-api,
+        hashable == 1.3.0.0,
+        plutus-chain-index-core,
         text

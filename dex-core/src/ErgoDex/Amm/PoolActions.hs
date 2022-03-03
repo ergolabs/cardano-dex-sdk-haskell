@@ -1,6 +1,6 @@
 module ErgoDex.Amm.PoolActions
   ( PoolActions(..)
-  , OrderExecErr
+  , OrderExecErr(..)
   , mkPoolActions
   ) where
 
@@ -9,8 +9,9 @@ import           Data.Bifunctor
 import           Data.Tuple
 import qualified Data.Set               as Set
 import           Control.Exception.Base
+import           RIO
 
-import           Ledger          (PubKeyHash(..), Redeemer(..), pubKeyHashAddress)
+import           Ledger          (PubKeyHash(..), Redeemer(..), pubKeyHashAddress, PaymentPubKeyHash(..))
 import qualified Ledger.Interval as Interval
 import qualified Ledger.Ada      as Ada
 import           Ledger.Scripts  (unitRedeemer)
@@ -33,20 +34,20 @@ data OrderExecErr =
 
 instance Exception OrderExecErr
 
-data PoolActions = PoolActions
-  { runSwap    :: Confirmed Swap    -> (FullTxOut, Pool) -> Either OrderExecErr (TxCandidate, Predicted Pool)
-  , runDeposit :: Confirmed Deposit -> (FullTxOut, Pool) -> Either OrderExecErr (TxCandidate, Predicted Pool)
-  , runRedeem  :: Confirmed Redeem  -> (FullTxOut, Pool) -> Either OrderExecErr (TxCandidate, Predicted Pool)
+data PoolActions f = PoolActions
+  { runSwap    :: Confirmed Swap    -> (FullTxOut, Pool) -> f (Either OrderExecErr (TxCandidate, Predicted Pool))
+  , runDeposit :: Confirmed Deposit -> (FullTxOut, Pool) -> f (Either OrderExecErr (TxCandidate, Predicted Pool))
+  , runRedeem  :: Confirmed Redeem  -> (FullTxOut, Pool) -> f (Either OrderExecErr (TxCandidate, Predicted Pool))
   }
 
-mkPoolActions :: PubKeyHash -> PoolActions
+mkPoolActions :: (MonadUnliftIO f, MonadIO f) => PubKeyHash -> PoolActions f
 mkPoolActions executorPkh = PoolActions
   { runSwap    = runSwap' executorPkh
   , runDeposit = runDeposit' executorPkh
   , runRedeem  = runRedeem' executorPkh
   }
 
-runSwap' :: PubKeyHash -> Confirmed Swap -> (FullTxOut, Pool) -> Either OrderExecErr (TxCandidate, Predicted Pool)
+runSwap' :: (MonadUnliftIO f, MonadIO f) => PubKeyHash -> Confirmed Swap -> (FullTxOut, Pool) -> f (Either OrderExecErr (TxCandidate, Predicted Pool))
 runSwap' executorPkh (Confirmed swapOut Swap{swapExFee=ExFeePerToken{..}, ..}) (poolOut, pool) = do
   let
     poolIn  = mkScriptTxIn poolOut poolScript (Redeemer $ toBuiltinData P.Swap)
@@ -57,11 +58,11 @@ runSwap' executorPkh (Confirmed swapOut Swap{swapExFee=ExFeePerToken{..}, ..}) (
 
     quoteOutput = outputAmount pool (AssetAmount swapBase swapBaseIn)
 
-  when (swapPoolId /= poolId pool)               (Left $ PoolMismatch swapPoolId (poolId pool))
-  when (getAmount quoteOutput < swapMinQuoteOut) (Left PriceTooHigh)
+  when (swapPoolId /= poolId pool)               (throw $ PoolMismatch swapPoolId (poolId pool))
+  when (getAmount quoteOutput < swapMinQuoteOut) (throw $ PriceTooHigh)
 
   let
-    rewardAddr = pubKeyHashAddress swapRewardPkh
+    rewardAddr = pubKeyHashAddress (PaymentPubKeyHash swapRewardPkh) Nothing
     rewardOut  =
         TxOutCandidate
           { txOutCandidateAddress  = rewardAddr
@@ -83,69 +84,78 @@ runSwap' executorPkh (Confirmed swapOut Swap{swapExFee=ExFeePerToken{..}, ..}) (
       , txCandidateOutputs      = [nextPoolOut, rewardOut]
       , txCandidateValueMint    = mempty
       , txCandidateMintInputs   = mempty
-      , txCandidateChangePolicy = Just $ ReturnTo $ pubKeyHashAddress executorPkh
+      , txCandidateChangePolicy = Just $ ReturnTo $ pubKeyHashAddress (PaymentPubKeyHash executorPkh) Nothing
       , txCandidateValidRange   = Interval.always
       }
 
-  Right (txCandidate, pp)
+  RIO.try $ RIO.evaluate (txCandidate, pp)
 
-runDeposit' :: PubKeyHash -> Confirmed Deposit -> (FullTxOut, Pool) -> Either OrderExecErr (TxCandidate, Predicted Pool)
+runDeposit' :: (MonadUnliftIO f, MonadIO f) => PubKeyHash -> Confirmed Deposit -> (FullTxOut, Pool) -> f (Either OrderExecErr (TxCandidate, Predicted Pool))
 runDeposit' executorPkh (Confirmed depositOut Deposit{..}) (poolOut, pool@Pool{..}) = do
-  when (depositPoolId /= poolId) (Left $ PoolMismatch depositPoolId poolId)
-  let
-    poolIn  = mkScriptTxIn poolOut poolScript (Redeemer $ toBuiltinData P.Deposit)
-    orderIn = mkScriptTxIn depositOut depositScript unitRedeemer
-    inputs  = [poolIn, orderIn]
+  _ <- liftIO $ print "runDeposit1"
+  when (depositPoolId /= poolId) (throw $ PoolMismatch depositPoolId poolId)
+  _ <- liftIO $ print "runDeposit2"
+  _ <- liftIO $ print "poolOut: "
+  poolIn  <- RIO.evaluate $ mkScriptTxIn poolOut poolScript (Redeemer $ toBuiltinData P.Deposit)
+  _ <- liftIO $ print ("runDeposit3" ++ (show poolIn))
+  orderIn <- RIO.evaluate $ mkScriptTxIn depositOut depositScript unitRedeemer
+  _ <- liftIO $ print ("runDeposit4" ++ (show orderIn))
+  inputs  <- RIO.evaluate $ [orderIn, poolIn]
+  _ <- liftIO $ print ("runDeposit5" ++ (show inputs))
+  let (inX :: Amount X, inY :: Amount Y) =
+          bimap entryAmount entryAmount $
+            if assetEntryClass (fst depositPair) == unCoin poolCoinX
+            then depositPair
+            else swap depositPair
+              where entryAmount (AssetEntry (_, v)) = Amount v
+  _ <- liftIO $ print ("runDeposit6" ++ (show inX) ++ "::" ++ (show inY))
+  exFee <- RIO.evaluate $ unExFee depositExFee
+  _ <- liftIO $ print ("runDeposit7" ++ (show exFee))
+  let (netInX, netInY)
+         | isAda poolCoinX = (inX - retagAmount exFee - retagAmount adaCollateral, inY)
+         | isAda poolCoinY = (inX, inY - retagAmount exFee - retagAmount adaCollateral)
+         | otherwise       = (inX, inY)
+  _ <- liftIO $ print ("runDeposit8" ++ (show netInX) ++ "::" ++ (show netInY))
+  pp@(Predicted nextPoolOut _) <- applyDeposit pool (netInX, netInY)
+  _ <- liftIO $ print ("runDeposit8" ++ (show pp))
+  mintLqValue <- RIO.evaluate $ assetAmountValue (liquidityAmount pool (netInX, netInY))
+  _ <- liftIO $ print ("runDeposit9" ++ (show mintLqValue))
+  rewardAddr <- RIO.evaluate $ pubKeyHashAddress (PaymentPubKeyHash depositRewardPkh) Nothing
+  _ <- liftIO $ print ("runDeposit10" ++ (show rewardAddr))
+  let rewardOut  =
+         TxOutCandidate
+           { txOutCandidateAddress = rewardAddr
+           , txOutCandidateValue   = rewardValue
+           , txOutCandidateDatum   = Nothing
+           }
+         where
+           initValue     = fullTxOutValue depositOut
+           residualValue =
+                initValue
+             <> assetClassValue (unCoin poolCoinX) (negate $ unAmount netInX) -- Remove X net input
+             <> assetClassValue (unCoin poolCoinY) (negate $ unAmount netInY) -- Remove Y net input
+             <> Ada.lovelaceValueOf (negate $ unAmount exFee)                 -- Remove Fee
+           rewardValue = residualValue <> mintLqValue
+  _ <- liftIO $ print ("runDeposit11" ++ (show rewardOut))
+  _ <- liftIO $ print ("======================================")
+  _ <- liftIO $ print ("nextPoolOut: " ++ (show nextPoolOut))
+  _ <- liftIO $ print ("======================================")
+  _ <- liftIO $ print ("rewardOut: " ++ (show rewardOut))
+  _ <- liftIO $ print ("======================================")
+  txCandidate <- RIO.evaluate $ TxCandidate
+                     { txCandidateInputs       = Set.fromList inputs
+                     , txCandidateOutputs      = [nextPoolOut, rewardOut]
+                     , txCandidateValueMint    = mempty
+                     , txCandidateMintInputs   = mempty
+                     , txCandidateChangePolicy = Just $ ReturnTo $ pubKeyHashAddress (PaymentPubKeyHash executorPkh) Nothing
+                     , txCandidateValidRange   = Interval.always
+                     }
 
-    (inX :: Amount X, inY :: Amount Y) =
-        bimap entryAmount entryAmount $
-          if assetEntryClass (fst depositPair) == unCoin poolCoinX
-          then depositPair
-          else swap depositPair
-      where entryAmount (AssetEntry (_, v)) = Amount v
+  RIO.try $ RIO.evaluate (txCandidate, pp)
 
-    exFee = unExFee depositExFee
-
-    (netInX, netInY)
-      | isAda poolCoinX = (inX - retagAmount exFee - retagAmount adaCollateral, inY)
-      | isAda poolCoinY = (inX, inY - retagAmount exFee - retagAmount adaCollateral)
-      | otherwise       = (inX, inY)
-
-    pp@(Predicted nextPoolOut _) = applyDeposit pool (netInX, netInY)
-
-    mintLqValue = assetAmountValue lqOutput
-      where lqOutput = liquidityAmount pool (netInX, netInY)
-
-    rewardAddr = pubKeyHashAddress depositRewardPkh
-    rewardOut  =
-        TxOutCandidate
-          { txOutCandidateAddress = rewardAddr
-          , txOutCandidateValue   = rewardValue
-          , txOutCandidateDatum   = Nothing
-          }
-      where
-        initValue     = fullTxOutValue depositOut
-        residualValue =
-             initValue
-          <> assetClassValue (unCoin poolCoinX) (negate $ unAmount netInX) -- Remove X net input
-          <> assetClassValue (unCoin poolCoinY) (negate $ unAmount netInY) -- Remove Y net input
-          <> Ada.lovelaceValueOf (negate $ unAmount exFee)                 -- Remove Fee
-        rewardValue = residualValue <> mintLqValue
-
-    txCandidate = TxCandidate
-      { txCandidateInputs       = Set.fromList inputs
-      , txCandidateOutputs      = [nextPoolOut, rewardOut]
-      , txCandidateValueMint    = mempty
-      , txCandidateMintInputs   = mempty
-      , txCandidateChangePolicy = Just $ ReturnTo $ pubKeyHashAddress executorPkh
-      , txCandidateValidRange   = Interval.always
-      }
-
-  Right (txCandidate, pp)
-
-runRedeem' :: PubKeyHash -> Confirmed Redeem -> (FullTxOut, Pool) -> Either OrderExecErr (TxCandidate, Predicted Pool)
+runRedeem' :: (MonadUnliftIO f, MonadIO f) => PubKeyHash -> Confirmed Redeem -> (FullTxOut, Pool) -> f (Either OrderExecErr (TxCandidate, Predicted Pool))
 runRedeem' executorPkh (Confirmed redeemIn Redeem{..}) (poolOut, pool@Pool{..}) = do
-  when (redeemPoolId /= poolId) (Left $ PoolMismatch redeemPoolId poolId)
+  when (redeemPoolId /= poolId) (throw $ PoolMismatch redeemPoolId poolId)
   let
     poolIn  = mkScriptTxIn poolOut poolScript (Redeemer $ toBuiltinData P.Redeem)
     orderIn = mkScriptTxIn redeemIn redeemScript unitRedeemer
@@ -155,7 +165,7 @@ runRedeem' executorPkh (Confirmed redeemIn Redeem{..}) (poolOut, pool@Pool{..}) 
 
     burnLqValue = assetClassValue (unCoin redeemLq) (negate $ unAmount redeemLqIn)
 
-    rewardAddr = pubKeyHashAddress redeemRewardPkh
+    rewardAddr = pubKeyHashAddress (PaymentPubKeyHash redeemRewardPkh) Nothing
     rewardOut  =
         TxOutCandidate
           { txOutCandidateAddress   = rewardAddr
@@ -175,8 +185,8 @@ runRedeem' executorPkh (Confirmed redeemIn Redeem{..}) (poolOut, pool@Pool{..}) 
       , txCandidateOutputs      = [nextPoolOut, rewardOut]
       , txCandidateValueMint    = mempty
       , txCandidateMintInputs   = mempty
-      , txCandidateChangePolicy = Just $ ReturnTo $ pubKeyHashAddress executorPkh
+      , txCandidateChangePolicy = Just $ ReturnTo $ pubKeyHashAddress (PaymentPubKeyHash executorPkh) Nothing
       , txCandidateValidRange   = Interval.always
       }
 
-  Right (txCandidate, pp)
+  RIO.try $ RIO.evaluate (txCandidate, pp)

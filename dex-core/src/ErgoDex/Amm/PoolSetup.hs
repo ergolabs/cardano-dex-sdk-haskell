@@ -6,7 +6,7 @@ import           Data.Functor
 import           Data.Either.Combinators (mapLeft)
 import qualified Data.Set                as Set
 
-import           Ledger          (PubKeyHash(..), Address, pubKeyHashAddress)
+import           Ledger          (PubKeyHash(..), Address, pubKeyHashAddress, PaymentPubKeyHash(..), StakePubKeyHash(..))
 import qualified Ledger.Interval as Interval
 import           Ledger.Value    (AssetClass)
 
@@ -52,7 +52,7 @@ poolDeploy' changeAddr rewardPkh pp@P.PoolConfig{..} utxosIn = do
   let
     mintLqValue  = coinAmountValue (poolCoinLq nextPool) unlockedLq
     rewardOutput = TxOutCandidate
-      { txOutCandidateAddress = pubKeyHashAddress rewardPkh
+      { txOutCandidateAddress = pubKeyHashAddress (PaymentPubKeyHash rewardPkh) (Nothing :: Maybe StakePubKeyHash) -- todo: stake addr
       , txOutCandidateValue   = mintLqValue <> minSafeOutputValue
       , txOutCandidateDatum   = Nothing
       }

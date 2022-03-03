@@ -16,6 +16,10 @@ newtype Addr = Addr { unAddr :: Text }
   deriving (Generic, FromJSON)
   deriving newtype (Show)
 
+newtype RawAddr = RawAddr { unRawAddr :: Text }
+    deriving (Generic, FromJSON)
+    deriving newtype (Show)
+
 instance ToCardanoTx Addr P.Address where
   toCardanoTx (Addr addr) = maybe (error "Impossible") id (Core.readShellyAddress addr)
 

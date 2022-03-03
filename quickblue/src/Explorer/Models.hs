@@ -2,19 +2,27 @@
 
 module Explorer.Models where
 
+import           Data.Aeson        (FromJSON, Value)
 import           Data.Aeson.Types
+import qualified Data.Either.Combinators as EC
+import           Data.Maybe
 import           Data.String       (IsString(..))
 import qualified Data.Text         as T
 import           GHC.Generics
 
-import qualified Ledger                 as P
-import qualified Plutus.V1.Ledger.Value as Value
+import qualified Ledger                     as P
+import qualified Cardano.Api                as CA
+import qualified Plutus.V1.Ledger.Value     as Value
+import qualified Cardano.Api.Shelley        as CAS
 import           Explorer.Types
 import           Explorer.Class
 import qualified CardanoTx.Models       as Tx
 import           CardanoTx.Value
+import qualified CardanoTx.Models           as Tx
+import qualified PlutusTx.Builtins.Internal as BI
 
 import qualified Data.Set        as Set
+import qualified Data.ByteString as DBS
 
 import qualified Cardano.Api as Api
 import           Cardano.Api.Shelley   (ProtocolParameters(..), PoolId)
@@ -24,6 +32,17 @@ import           Ouroboros.Consensus.HardFork.History.EraParams as EP
 import           Ouroboros.Consensus.BlockchainTime.WallClock.Types
 import           Ouroboros.Consensus.Block
 import           Ouroboros.Consensus.Util.Counting
+import qualified Data.Text.Encoding      as T
+import qualified Data.ByteString.Base16  as Hex
+
+--todo: to utils
+mkByteString :: T.Text -> DBS.ByteString
+mkByteString input = unsafeFromEither input (Hex.decode . T.encodeUtf8 $ input)
+
+--todo: to utils
+unsafeFromEither :: T.Text -> Either String a -> a
+unsafeFromEither input (Left err)    = Prelude.error ((show err) ++ (show input))
+unsafeFromEither _ (Right value) = value
 
 data SystemEnv = SystemEnv
   { pparams'           :: ProtocolParameters
@@ -44,7 +63,7 @@ instance FromJSON SystemEnv where
     collateralPercent' <- o .: "collateralPercent"
     return
       SystemEnv
-        { pparams' = pparams'
+        { pparams'           = pparams'
         , network'           = Api.Testnet $ Api.NetworkMagic 1097911063
         , sysstart'          = sysstart'
         , pools'             = Set.empty
@@ -84,6 +103,7 @@ data FullTxOut = FullTxOut
   , index       :: Int
   , globalIndex :: Gix
   , addr        :: Addr
+  , rawAddr     :: RawAddr
   , value       :: [OutAsset]
   , dataHash    :: Maybe P.DatumHash
   , data'       :: Maybe P.Datum
@@ -96,11 +116,18 @@ instance FromJSON FullTxOut where
     index        <- o .: "index"
     globalIndex  <- Gix <$> o .: "globalIndex"
     addr         <- Addr <$> o .: "addr"
+    rawAddr      <- RawAddr <$> o .: "rawAddr"
     value        <- o .: "value"
     dataHash     <- o .:? "dataHash"
-    data'        <- o .:? "data"
+    rawDataM     <- (o .:? "data")
+    let
+      dataTestE  = rawDataM
+      dataTest0  = dataTestE >>= (\m -> EC.rightToMaybe $ CA.scriptDataFromJson CA.ScriptDataJsonDetailedSchema m)
+      dataTest1  = fmap CAS.toPlutusData dataTest0
+      dataTest2  = fmap BI.dataToBuiltinData dataTest1
+      dataEither = fmap (\d -> P.Datum d) dataTest2
+      data'      = dataEither
     return FullTxOut{..}
-
 
 instance ToCardanoTx FullTxOut Tx.FullTxOut where
   toCardanoTx FullTxOut{..} = Tx.FullTxOut
@@ -119,13 +146,13 @@ data OutAsset = OutAsset
 
 instance FromJSON OutAsset where
   parseJSON = withObject "quickblueOutAsset" $ \o -> do
-    policy    <- PolicyId <$> o .: "policyId"
-    name      <- AssetName <$> o .: "name"
-    quantity  <- o .: "quantity"
+    policy      <- PolicyId <$> o .: "policyId"
+    name        <- AssetName <$> o .: "name"
+    quantity    <- o .: "quantity"
     return OutAsset{..}
 
 instance ToCardanoTx OutAsset P.Value where
   toCardanoTx OutAsset{..} = Value.singleton p n quantity
     where
-      p = fromString $ T.unpack $ unPolicyId policy
+      p = Value.CurrencySymbol $ BI.BuiltinByteString $ mkByteString $ unPolicyId policy
       n = fromString $ T.unpack $ unAssetName name

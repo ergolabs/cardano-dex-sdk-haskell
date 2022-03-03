@@ -71,6 +71,6 @@ library
 
     hs-source-dirs: src
 
-    exposed-modules: SdkCore.Throw.Combinators
+    exposed-modules: Common.Throw.Combinators
 
-    build-depends:  rio, plutus-ledger-api, plutus-tx, containers
+    build-depends:  rio, plutus-ledger-api, plutus-tx, containers, hashable == 1.3.0.0

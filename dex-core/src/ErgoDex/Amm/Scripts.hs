@@ -4,6 +4,7 @@ import Ledger
 import Ledger.Typed.Scripts.Validators
 
 import ErgoDex.Contracts.OffChain
+import qualified ErgoDex.PContracts.PDeposit as PDeposit
 import ErgoDex.Contracts.Proxy.OffChain
 
 poolScript :: Validator
@@ -16,7 +17,7 @@ swapScript :: Validator
 swapScript = validatorScript swapInstance
 
 depositScript :: Validator
-depositScript = validatorScript depositInstance
+depositScript = PDeposit.validator --validatorScript depositInstance
 
 redeemScript :: Validator
 redeemScript = validatorScript redeemInstance

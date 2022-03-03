@@ -4,6 +4,7 @@ import Data.Bifunctor
 import Data.Functor
 import Data.Aeson     (FromJSON, ToJSON)
 import GHC.Generics   (Generic)
+import           RIO
 
 import Ledger
 import Ledger.Value                    (assetClassValue, assetClassValueOf)
@@ -120,19 +121,20 @@ initPool S.PoolConfig{..} (inX, inY) = do
     poolOut = toLedger pool
   Right (Predicted poolOut pool, unlockedLq)
 
-applyDeposit :: Pool -> (Amount X, Amount Y) -> Predicted Pool
-applyDeposit p@Pool{..} (inX, inY) =
-    Predicted nextPoolOut nextPool
-  where
-    unlockedLq = getAmount (liquidityAmount p (inX, inY))
-
-    nextPool = p
-      { poolReservesX = poolReservesX + inX
-      , poolReservesY = poolReservesY + inY
-      , poolLiquidity = poolLiquidity + unlockedLq
-      }
-
-    nextPoolOut = toLedger nextPool
+applyDeposit :: (MonadIO f) => Pool -> (Amount X, Amount Y) -> f (Predicted Pool)
+applyDeposit p@Pool{..} (inX, inY) = do
+  _ <- liftIO $ print ("applyDeposit" ++ (show inX) ++ "::" ++ (show inY) ++ "::" ++ (show p))
+  let unlockedLq = getAmount (liquidityAmount p (inX, inY))
+  _ <- liftIO $ print ("unlockedLq" ++ (show unlockedLq))
+  let nextPool = p
+            { poolReservesX = poolReservesX + inX
+            , poolReservesY = poolReservesY + inY
+            , poolLiquidity = poolLiquidity + unlockedLq
+            }
+  _ <- liftIO $ print ("nextPool" ++ (show nextPool))
+  let nextPoolOut = toLedger nextPool
+  _ <- liftIO $ print ("nextPoolOut" ++ (show nextPoolOut))
+  pure $ Predicted nextPoolOut nextPool
 
 applyRedeem :: Pool -> Amount Liquidity -> Predicted Pool
 applyRedeem p@Pool{..} burnedLq =
