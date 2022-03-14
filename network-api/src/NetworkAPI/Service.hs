@@ -38,6 +38,7 @@ submitTx' NodeConfig{..} tx = do
       & setRequestMethod (pack "POST")
       & setRequestBodyLBS serialisedTx
   liftIO . print $ ("res: " ++ (show res))
+  liftIO . print $ ("hex: " ++ (show encoded))
   liftIO . print $ ("serialisedTx: " ++ (show serialisedTx))
   liftIO . print $ ("DeserTx: " ++ (show deser))
   response <- liftIO (httpJSON request :: IO (Response String))
