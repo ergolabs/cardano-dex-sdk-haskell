@@ -8,6 +8,8 @@ import           Network.HTTP.Simple
 import           Data.ByteString.Char8
 import           GHC.Natural
 import qualified Data.ByteString.Lazy as Lazy
+import qualified Data.ByteString.Base16  as Hex
+import qualified Data.Text.Encoding      as T
 
 import Explorer.Service as Explorer
 import NetworkAPI.Env
@@ -26,6 +28,7 @@ submitTx' NodeConfig{..} tx = do
   let
     res = serialiseToCBOR tx
     serialisedTx = Lazy.fromStrict $ serialiseToCBOR tx --check
+    encoded = T.decodeUtf8 . Hex.encode $ res
     deser        = deserialiseFromCBOR AsAlonzoTx res
     request = defaultRequest
       & setRequestPath (pack "api/submit/tx")

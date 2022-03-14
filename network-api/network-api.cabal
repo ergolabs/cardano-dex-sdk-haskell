@@ -96,6 +96,7 @@ library
         freer-simple,
         extra,
         cardano-api,
+        base16-bytestring,
         text,
         dhall,
         quickblue
