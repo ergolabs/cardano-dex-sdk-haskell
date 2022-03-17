@@ -57,7 +57,7 @@ estimateTxFee
 estimateTxFee pparams network collateral txc = do
   txBodyContent <- buildTxBodyContent pparams network collateral txc
   txBody        <- either (throwM . TxBodyError . T.pack . show) pure (makeTransactionBody txBodyContent)
-  pure $ evaluateTransactionFee pparams txBody 0 0
+  pure $ evaluateTransactionFee pparams txBody 1 0 -- 1 because of we have wallet3 signature
 
 buildTxBodyContent
   :: (MonadThrow f, MonadIO f)
