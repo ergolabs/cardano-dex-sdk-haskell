@@ -168,7 +168,7 @@ buildBalancedTx SystemEnv{..} defaultChangeAddr collateral txc@Sdk.TxCandidate{.
       ws = getTxWitnesses tx
       txBodyA  = getTxBody tx :: TxBody AlonzoEra
       scripts = Interop.plutusScriptsFromTxBody txBodyA
-      -- test = evaluateTransactionExecutionUnits eraInMode sysstart eraHistory pparams inputsMap txBodyA
+      test = evaluateTransactionExecutionUnits eraInMode sysstart eraHistory pparams inputsMap txBodyA
       tvBody = AT.body txv
       wits@(TxWitness _ _ sc _ _) = AT.wits txv
       da@(TxWitness _ _ _ dats ra) = AT.wits txv
@@ -247,6 +247,7 @@ buildBalancedTx SystemEnv{..} defaultChangeAddr collateral txc@Sdk.TxCandidate{.
 --    _ <- liftIO $ print ("scriptsNeeded: " ++ (show list))
 --    _ <- liftIO $ print ("testMap: " ++ (show testMap))
     _ <- liftIO $ print ("ra: " ++ (show ra))
+    _ <- liftIO $ print ("test: " ++ (show test))
     _ <- liftIO $ print ("testMap: " ++ (show testMap))
     _ <- liftIO $ print ("alonzoCost: " ++ (show (Alonzo.PlutusV1, Alonzo.PlutusV2)))
 --    _ <- liftIO $ print ("txInfos p1: " ++ (show (txInfos Array.! Alonzo.PlutusV1)))
