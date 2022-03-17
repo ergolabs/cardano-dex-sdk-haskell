@@ -28,7 +28,7 @@ submitTx' NodeConfig{..} tx = do
   let
     res = serialiseToCBOR tx
     serialisedTx = Lazy.fromStrict $ serialiseToCBOR tx --check
-    encoded = T.decodeUtf8 . Hex.encode $ res
+    encoded = T.decodeUtf8 . Hex.encode $ Lazy.toStrict $ Lazy.fromStrict $ res
     deser        = deserialiseFromCBOR AsAlonzoTx res
     request = defaultRequest
       & setRequestPath (pack "api/submit/tx")

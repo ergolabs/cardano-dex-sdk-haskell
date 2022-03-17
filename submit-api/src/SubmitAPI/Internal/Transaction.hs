@@ -119,7 +119,7 @@ buildBalancedTx
   -> f (BalancedTxBody AlonzoEra)
 buildBalancedTx SystemEnv{..} defaultChangeAddr collateral txc@Sdk.TxCandidate{..} = do
   let eraInMode    = AlonzoEraInCardanoMode
-      witOverrides = Nothing
+      witOverrides = Just 1
   txBody     <- buildTxBodyContent pparams network collateral txc
   let cp = map Sdk.mkPkhTxIn (map Sdk.fullCollateralTxInTxOut (Set.elems collateral))
   _ <- liftIO $ print ("inputsMap: " ++ (show (Set.elems (txCandidateInputs))))
