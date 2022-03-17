@@ -72,6 +72,7 @@ finalizeTx' Network{..} wallet@Vault{..} conf@TxAssemblyConfig{..} txc@Sdk.TxCan
       where
         -- getPkh Sdk.FullTxIn{fullTxInTxOut=Sdk.FullTxOut{fullTxOutAddress=P.Address (P.PubKeyCredential pkh) _}} = [pkh] || only for test
         getPkh _                                                                                                = [pPubKeyHashReward]
+  _ <- liftIO $ print ("txb:" ++ (show txb))
   signers <- mapM (\pkh -> getSigningKey pkh >>= maybe (throwM $ SignerNotFound pkh) pure) requiredSigners
   pure $ signTx txb signers
 
@@ -93,6 +94,7 @@ selectCollaterals WalletOutputs{selectUtxos, selectUxtosByFilter} SystemEnv{..} 
         let
           estimateCollateral' collaterals = do
             fee <- estimateTxFee pparams network collaterals txc
+            _   <- liftIO $ (print $ "fee: " ++ (show fee))
             let (C.Quantity fee')  = C.lovelaceToQuantity fee
                 collateralPercent' = naturalToInteger collateralPercent
             pure $ P.Lovelace $ collateralPercent' * fee' `div` 100
