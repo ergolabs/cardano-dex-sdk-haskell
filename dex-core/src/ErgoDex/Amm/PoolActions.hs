@@ -1,6 +1,6 @@
 module ErgoDex.Amm.PoolActions
   ( PoolActions(..)
-  , OrderExecErr
+  , OrderExecErr(..)
   , mkPoolActions
   ) where
 
