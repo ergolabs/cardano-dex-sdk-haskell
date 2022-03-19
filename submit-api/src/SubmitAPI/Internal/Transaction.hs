@@ -330,7 +330,7 @@ buildTxBodyContent protocolParams network collateral Sdk.TxCandidate{..} = do
     , txOuts            = txOuts
     , txFee             = txFee
     , txValidityRange   = txValidityRange
-    , txMintValue       = txMintValue
+    , txMintValue       = TxMintNone -- todo: check
     , txProtocolParams  = BuildTxWith $ Just protocolParams
     , txExtraKeyWits    = TxExtraKeyWitnesses ExtraKeyWitnessesInAlonzoEra wits
     -- unused:
