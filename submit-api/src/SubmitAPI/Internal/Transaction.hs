@@ -338,7 +338,7 @@ buildTxBodyContent protocolParams network collateral Sdk.TxCandidate{..} = do
     , txMetadata       = TxMetadataNone
     , txAuxScripts     = TxAuxScriptsNone
     , txWithdrawals    = TxWithdrawalsNone
-    , txCertificates   = TxCertificatesNone
+    , txCertificates   = TxCertificates CertificatesInAlonzoEra [] (BuildTxWith Map.empty) -- TxCertificatesNone
     , txUpdateProposal = TxUpdateProposalNone
     }
 
