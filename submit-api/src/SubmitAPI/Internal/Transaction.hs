@@ -260,6 +260,17 @@ buildBalancedTx SystemEnv{..} defaultChangeAddr collateral txc@Sdk.TxCandidate{.
 --    _ <- liftIO $ print ("utxo: " ++ (show inputsMap))
     _ <- liftIO $ print ("testF: " ++ (show b))
     -- _ <- liftIO $ print ("test: " ++ (show test))
+    _ <- liftIO $ print ("-------------------------")
+    _ <- liftIO $ print ("eraInMode: " ++ (show eraInMode))
+    _ <- liftIO $ print ("sysstart: " ++ (show sysstart))
+    _ <- liftIO $ print ("eraHistory: " ++ (show eraHistory))
+    _ <- liftIO $ print ("pparams: " ++ (show pparams))
+    _ <- liftIO $ print ("pools: " ++ (show pools))
+    _ <- liftIO $ print ("inputsMap: " ++ (show inputsMap))
+    _ <- liftIO $ print ("txBody: " ++ (show txBody))
+    _ <- liftIO $ print ("changeAddr: " ++ (show changeAddr))
+    _ <- liftIO $ print ("witOverrides: " ++ (show witOverrides))
+    _ <- liftIO $ print ("-------------------------")
     pure ()
   absorbBalancingError $ makeTransactionBodyAutoBalance eraInMode sysstart eraHistory pparams pools inputsMap txBody changeAddr witOverrides
     where
