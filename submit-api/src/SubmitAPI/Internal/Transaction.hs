@@ -415,7 +415,7 @@ buildTxOuts network =
        maybeDatum = Sdk.txOutCandidateDatum sdkOut
        maybeHash = fmap P.datumHash maybeDatum
        res = RIO.fromMaybe mempty (maybeHash >>= (\hash -> fmap (\datum -> Map.singleton hash datum) maybeDatum))
-     in absorbError $ Interop.toCardanoTxOut network res $ toPlutus sdkOut
+     in absorbError $ Interop.toCardanoTxOut network Map.empty $ toPlutus sdkOut
 
 buildInputsUTxO
   :: (MonadThrow f, MonadIO f)
