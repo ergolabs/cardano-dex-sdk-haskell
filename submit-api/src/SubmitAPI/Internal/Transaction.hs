@@ -164,7 +164,7 @@ buildBalancedTx SystemEnv{..} defaultChangeAddr collateral txc@Sdk.TxCandidate{.
     let
       wK = WitnessPaymentKey key
       witness2put = makeShelleyKeyWitness body wK
-      tx@(C.ShelleyTx ShelleyBasedEraAlonzo txv) = makeSignedTransaction [witness2put] body :: Tx AlonzoEra
+      tx@(C.ShelleyTx ShelleyBasedEraAlonzo txv) = makeSignedTransaction [] body :: Tx AlonzoEra
       ws = getTxWitnesses tx
       txBodyA  = getTxBody tx :: TxBody AlonzoEra
       scripts = Interop.plutusScriptsFromTxBody txBodyA
