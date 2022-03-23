@@ -76,6 +76,12 @@ finalizeTx' Network{..} wallet@Vault{..} conf@TxAssemblyConfig{..} txc@Sdk.TxCan
   signers <- mapM (\pkh -> getSigningKey pkh >>= maybe (throwM $ SignerNotFound pkh) pure) requiredSigners
   pure $ signTx txb signers
 
+updateRedeemers :: TxBody AlonzoEra -> TxBody AlonzoEra
+updateRedeemers (ShelleyTxBody a txBody b c d e) =
+  let body' = body
+    { Alonzo.reqSignerHashes = Set.fromList $ hashKey <$> vks
+    }
+
 selectCollaterals
   :: MonadThrow f
   => MonadIO f

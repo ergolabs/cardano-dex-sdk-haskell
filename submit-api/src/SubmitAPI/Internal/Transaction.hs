@@ -277,7 +277,7 @@ buildBalancedTx SystemEnv{..} defaultChangeAddr collateral txc@Sdk.TxCandidate{.
       absorbBalancingError (Left e)  = do
         _ <- liftIO $ print ("error: " ++ (show e))
         throwM $ BalancingError $ T.pack $ show e
-      absorbBalancingError (Right a@(BalancedTxBody balancedTxBody _ fee)) = do
+      absorbBalancingError (Right a@(BalancedTxBody _ _ fee)) = do
         _ <- liftIO $ print ("right fee: " ++ (show fee))
         pure a
 
