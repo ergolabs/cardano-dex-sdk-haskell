@@ -5,8 +5,9 @@ import GHC.Generics
 import Dhall
 
 data ExplorerConfig = ExplorerConfig
-  { explorerHost :: String
-  , explorerPort :: Natural
+  { explorerUrl             :: String
+  , maxRetries              :: Natural
+  , exponentialBackoffDelay :: Natural
   } deriving (Generic, Show)
 
 instance FromDhall ExplorerConfig

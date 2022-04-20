@@ -5,8 +5,12 @@ import Data.ByteString.Char8  as Data
 import Data.Function
 import Data.Aeson
 import qualified  Data.Text as T
+import Data.Either.Combinators
 import GHC.Natural
 import Network.HTTP.Simple
+import Control.Monad.Catch
+import GHC.Natural
+import Control.Retry
 
 import Explorer.Types
 import Explorer.Models
@@ -21,7 +25,7 @@ data Explorer f = Explorer
   , getSystemEnv             :: f SystemEnv
   }
 
-mkExplorer :: MonadIO f => ExplorerConfig -> Explorer f
+mkExplorer :: (MonadIO f, MonadMask f) => ExplorerConfig -> Explorer f
 mkExplorer conf = Explorer
   { getOutput                = getOutput' conf
   , getUnspentOutputs        = getUnspentOutputs' conf
@@ -29,35 +33,38 @@ mkExplorer conf = Explorer
   , getSystemEnv             = getSystemEnv' conf
   }
 
-getOutput' :: MonadIO f => ExplorerConfig -> TxOutRef -> f (Maybe FullTxOut)
-getOutput' conf ref = 
-  mkGetRequest conf $ "/v1/outputs/" ++ renderTxOutRef ref
+getOutput' :: (MonadIO f, MonadMask f) => ExplorerConfig -> TxOutRef -> f (Maybe FullTxOut)
+getOutput' conf ref =
+  mkGetWithRetry conf $ "/v1/outputs/" ++ renderTxOutRef ref
 
-getUnspentOutputs' :: MonadIO f => ExplorerConfig -> Gix -> Limit -> f (Items FullTxOut)
+getUnspentOutputs' :: (MonadIO f, MonadMask f) => ExplorerConfig -> Gix -> Limit -> f (Items FullTxOut)
 getUnspentOutputs' conf minIndex limit =
-  mkGetRequest conf $ "/v1/outputs/unspent/indexed?minIndex=" ++ show minIndex ++ "&limit=" ++ show limit
+  mkGetWithRetry conf $ "/v1/outputs/unspent/indexed?minIndex=" ++ show minIndex ++ "&limit=" ++ show limit
 
-getUnspentOutputsByPCred' :: MonadIO f => ExplorerConfig -> PaymentCred -> Paging -> f (Items FullTxOut)
+getUnspentOutputsByPCred' :: (MonadIO f, MonadMask f) => ExplorerConfig -> PaymentCred -> Paging -> f (Items FullTxOut)
 getUnspentOutputsByPCred' conf pcred Paging{..} =
-  mkGetRequest conf $ "/v1/outputs/unspent/byPaymentCred/" ++ T.unpack (unPaymentCred pcred) ++  "/?offset=" ++ show offset ++ "&limit=" ++ show limit
+  mkGetWithRetry conf $ "/v1/outputs/unspent/byPaymentCred/" ++ T.unpack (unPaymentCred pcred) ++  "/?offset=" ++ show offset ++ "&limit=" ++ show limit
 
-getSystemEnv' :: MonadIO f => ExplorerConfig -> f SystemEnv
-getSystemEnv' conf = mkGetRequest conf "/networkParams"
+getSystemEnv' :: (MonadIO f, MonadMask f) => ExplorerConfig -> f SystemEnv
+getSystemEnv' conf = mkGetWithRetry conf "/networkParams"
 
-mkGetRequest :: (MonadIO f, FromJSON a, Show a) => ExplorerConfig -> String -> f a
+mkGetWithRetry :: (MonadIO f, FromJSON a, MonadMask f) => ExplorerConfig -> String -> f a
+mkGetWithRetry cfg@ExplorerConfig{..} path = do
+  recoverAll (exponentialBackoff (naturalToInt exponentialBackoffDelay) <> limitRetries (naturalToInt maxRetries)) toRet
+   where
+     toRet status = do
+       (liftIO . print $ ("Going to get data from explorer. Current retry status: " ++ (show status)))
+       mkGetRequest cfg path
+
+mkGetRequest :: (MonadIO f, FromJSON a, MonadMask f) => ExplorerConfig -> String -> f a
 mkGetRequest ExplorerConfig{..} path = do
+  initReq <- parseRequest explorerUrl
   let
-    request = defaultRequest
+    request = initReq
       & setRequestPath (Data.pack path)
-      & setRequestHost (Data.pack explorerHost)
-      & setRequestPort (naturalToInt explorerPort)
+      & setRequestMethod "GET"
 
   response <- httpJSON request
-
-  let parsedResponse = getResponseBody response
-
-  liftIO . print $ "Response is: " ++ show parsedResponse
-
-  pure parsedResponse
+  pure $ getResponseBody response
 
 renderTxOutRef ref = (show . txOutRefId $ ref) ++ "#" ++ (show . txOutRefIdx $ ref)

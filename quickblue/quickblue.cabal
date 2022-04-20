@@ -91,6 +91,8 @@ library
         containers,
         plutus-tx,
         either,
+        retry,
+        exceptions,
         ouroboros-consensus,
         rio,
         cardano-crypto-class,
