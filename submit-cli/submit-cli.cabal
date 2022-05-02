@@ -1,0 +1,116 @@
+cabal-version:      2.4
+name:               submit-cli
+version:            0.1.0.0
+
+author:             ErgoLabs
+maintainer:         ErgoLabs
+
+extra-source-files: CHANGELOG.md
+
+source-repository head
+  type: git
+  location: https://github.com/ergolabs/cardano-dex-sdk-haskell
+
+common base
+  build-depends: base >= 4.9 && < 5
+
+common project-config
+  default-language:     Haskell2010
+
+  default-extensions:   OverloadedStrings
+                        DeriveAnyClass
+                        BangPatterns
+                        BinaryLiterals
+                        ConstraintKinds
+                        DataKinds
+                        DefaultSignatures
+                        DeriveDataTypeable
+                        DeriveFoldable
+                        DeriveFunctor
+                        DeriveGeneric
+                        DeriveTraversable
+                        DoAndIfThenElse
+                        EmptyDataDecls
+                        ExistentialQuantification
+                        FlexibleContexts
+                        FlexibleInstances
+                        FunctionalDependencies
+                        GADTs
+                        GeneralizedNewtypeDeriving
+                        InstanceSigs
+                        KindSignatures
+                        LambdaCase
+                        MultiParamTypeClasses
+                        MultiWayIf
+                        NamedFieldPuns
+                        PartialTypeSignatures
+                        PatternGuards
+                        PolyKinds
+                        RankNTypes
+                        RecordWildCards
+                        ScopedTypeVariables
+                        StandaloneDeriving
+                        TupleSections
+                        TypeFamilies
+                        TypeSynonymInstances
+                        ViewPatterns
+
+  ghc-options:          -Wall
+                        -Wcompat
+                        -Wincomplete-record-updates
+                        -Wincomplete-uni-patterns
+                        -Wpartial-fields
+                        -Wredundant-constraints
+                        -Wunused-packages
+                        -Widentities
+                        -fobject-code -fno-ignore-interface-pragmas -fno-omit-interface-pragmas
+
+library
+    import: base, project-config
+
+    hs-source-dirs: src
+
+    exposed-modules: SubmitCli.SubmitCli
+
+    build-depends:
+        rio==0.1.21.0,
+        serialise==0.2.3.0,
+        cardano-tx==0.1.0.0,
+        network-api==0.1.0.0,
+        wallet-api==0.1.0.0,
+        plutus-chain-index==0.1.0.0,
+        plutus-tx==0.1.0.0,
+        plutus-ledger-api==0.1.0.0,
+        plutus-ledger-constraints==0.1.0.0,
+        plutus-contract==0.1.0.0,
+        prettyprinter==1.7.0,
+        cardano-slotting==0.1.0.0,
+        cardano-api==1.32.1,
+        mtl==2.2.2,
+        plutus-ledger,
+        bytestring,
+        aeson,
+        servant,
+        singletons,
+        either,
+        aeson-gadt-th,
+        some,
+        dependent-sum-template,
+        containers,
+        freer-simple,
+        extra,
+        text,
+        dhall,
+        plutus-contract,
+        freer-simple==1.2.1.1,
+        cardano-ledger-alonzo,
+        cardano-ledger-shelley,
+        cardano-ledger-core,
+        cardano-ledger-shelley-ma,
+        cardano-ledger-byron,
+        cardano-binary,
+        strict-containers,
+        transformers,
+        array,
+        base16-bytestring==1.0.1.0,
+        process==1.6.9.0

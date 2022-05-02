@@ -8,6 +8,7 @@ packages:
   wallet-api
   network-api
   submit-api
+  submit-cli
   datum-keeper-client
 
 -- You never, ever, want this.
