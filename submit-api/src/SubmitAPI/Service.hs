@@ -12,6 +12,7 @@ import qualified Plutus.V1.Ledger.Credential as P
 
 import qualified CardanoTx.Models               as Sdk
 import           SubmitAPI.Config
+import System.Logging.Hlog (Logging(..), MakeLogging(..))
 import qualified SubmitAPI.Internal.Transaction  as Internal
 import           SubmitAPI.Internal.Transaction  (TxAssemblyError(..))
 import           NetworkAPI.Service  hiding (submitTx)
@@ -19,26 +20,30 @@ import qualified NetworkAPI.Service  as Network
 import           NetworkAPI.Types
 import           WalletAPI.Utxos
 import           WalletAPI.Vault
+import ErgoDex.Amm.Pool (Pool)
 
 data Transactions f era = Transactions
   { estimateTxFee :: Set.Set Sdk.FullCollateralTxIn -> Sdk.TxCandidate -> f C.Lovelace
   , finalizeTx    :: Sdk.TxCandidate -> f (C.Tx era)
-  , submitTx      :: C.Tx era -> f C.TxId
+  , submitTx      :: Pool -> C.Tx era -> f C.TxId
   }
 
 mkTransactions
-  :: (MonadThrow f, MonadIO f)
-  => CardanoNetwork f C.AlonzoEra
+  :: (Monad i, MonadThrow f, MonadIO f)
+  => MakeLogging i f
+  -> CardanoNetwork f C.AlonzoEra
   -> C.NetworkId
   -> WalletOutputs f
   -> Vault f
   -> TxAssemblyConfig
-  -> Transactions f C.AlonzoEra
-mkTransactions network networkId utxos wallet conf = Transactions
-  { estimateTxFee = estimateTxFee' network networkId
-  , finalizeTx    = finalizeTx' network networkId utxos wallet conf
-  , submitTx      = submitTx' network
-  }
+  -> i (Transactions f C.AlonzoEra)
+mkTransactions MakeLogging{..} network networkId utxos wallet conf = do
+  logging <- forComponent "Transactions"
+  pure $ Transactions
+    { estimateTxFee = estimateTxFee' network networkId
+    , finalizeTx    = finalizeTx' network networkId utxos wallet conf
+    , submitTx      = submitTx' logging network
+    }
 
 estimateTxFee'
   :: MonadThrow f
@@ -76,9 +81,10 @@ finalizeTx' CardanoNetwork{..} network utxos Vault{..} conf@TxAssemblyConfig{..}
   signers <- mapM (\pkh -> getSigningKey pkh >>= maybe (throwM $ SignerNotFound pkh) pure) signatories
   pure $ Internal.signTx txb signers
 
-submitTx' :: Monad f => CardanoNetwork f C.AlonzoEra -> C.Tx C.AlonzoEra -> f C.TxId
-submitTx' CardanoNetwork{submitTx} tx = do
-  submitTx tx
+submitTx' :: Monad f => Logging f -> CardanoNetwork f C.AlonzoEra -> Pool -> C.Tx C.AlonzoEra -> f C.TxId
+submitTx' Logging{..} CardanoNetwork{submitTx} pool tx = do
+  _ <- infoM ("Going to submit tx with id " ++ (show $ C.getTxId . C.getTxBody $ tx))
+  _ <- submitTx pool tx
   pure . C.getTxId . C.getTxBody $ tx
 
 selectCollaterals

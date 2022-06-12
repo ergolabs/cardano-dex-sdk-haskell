@@ -11,10 +11,10 @@ import CardanoTx.Models
 type Store = Map.Map TxOutRef FullTxOut
 
 data UtxoStore f = UtxoStore
-  { putUtxos     :: Set.Set FullTxOut -> f ()
-  , getUtxos     :: f (Set.Set FullTxOut)
-  , dropUtxos    :: Set.Set TxOutRef -> f ()
-  , containsUtxo :: TxOutRef -> f Bool
+  { putUtxos          :: Set.Set FullTxOut -> f ()
+  , getUtxos          :: f (Set.Set FullTxOut)
+  , dropUtxos         :: Set.Set TxOutRef -> f ()
+  , containsUtxo      :: TxOutRef -> f Bool
   }
 
 mkUtxoStore :: (MonadIO i, MonadIO f) => MakeLogging i f -> i (UtxoStore f)
@@ -22,10 +22,10 @@ mkUtxoStore MakeLogging{..} = do
   logging <- forComponent "UtxoStore"
   storeT  <- liftIO $ newTVarIO mempty
   pure $ attachTracing logging UtxoStore
-    { putUtxos     = put' storeT
-    , getUtxos     = get' storeT
-    , dropUtxos    = drop' storeT
-    , containsUtxo = contains' storeT
+    { putUtxos          = put' storeT
+    , getUtxos          = get' storeT
+    , dropUtxos         = drop' storeT
+    , containsUtxo      = contains' storeT
     }
 
 put' :: MonadIO f => TVar Store -> Set.Set FullTxOut -> f ()

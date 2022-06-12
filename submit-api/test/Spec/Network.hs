@@ -31,7 +31,7 @@ import           Ouroboros.Consensus.Util.Counting
 mkMockNetwork :: Applicative f => CardanoNetwork f era
 mkMockNetwork = CardanoNetwork
   { getSystemEnv = pure staticSystemEnv
-  , submitTx     = const $ pure ()
+  , submitTx     = const $ \_ -> pure ()
   }
 
 staticSystemEnv :: SystemEnv

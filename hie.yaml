@@ -12,6 +12,8 @@ cradle:
       component: "quickblue:lib:quickblue"
     - path: "./network-api/src"
       component: "network-api:lib:network-api"
+    - path: "./test/src"
+        component: "test:lib:test"
     - path: "./wallet-api/src"
       component: "wallet-api:lib:wallet-api"
     - path: "./submit-api/src"

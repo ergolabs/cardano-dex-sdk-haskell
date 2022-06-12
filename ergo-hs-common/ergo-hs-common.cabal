@@ -74,5 +74,7 @@ library
     exposed-modules:
       Common.Throw.Combinators
       Common.Data.List.Combinators
+      Common.Cardano.Interop
+      Common.Exception.Catch
 
-    build-depends:  rio, plutus-ledger-api, plutus-tx, containers
+    build-depends:  rio, plutus-ledger-api, plutus-tx, containers, cardano-api

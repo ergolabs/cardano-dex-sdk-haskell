@@ -8,6 +8,7 @@ import           Codec.Serialise           (serialise)
 import           Data.ByteString.Lazy      (toStrict)
 import           Data.Text.Prettyprint.Doc (Pretty(..))
 import qualified Data.Set                  as Set
+import qualified Debug.Trace     as D
 
 import           Cardano.Api          hiding (TxBodyError)
 import           Cardano.Api.Shelley  (ProtocolParameters(..))
@@ -40,16 +41,18 @@ buildBalancedTx
 buildBalancedTx SystemEnv{..} network defaultChangeAddr collateral txc@Sdk.TxCandidate{..} = do
   let eraInMode    = AlonzoEraInCardanoMode
       witOverrides = Nothing
+  _ <- D.traceM ("txc: " ++ (show txc))
   txBody     <- buildTxBodyContent pparams network collateral txc
   inputsMap  <- buildInputsUTxO network $ Set.elems txCandidateInputs
   changeAddr <- absorbError $ case txCandidateChangePolicy of
     Just (Sdk.ReturnTo addr) -> Interop.toCardanoAddress network addr
     _                        -> Interop.toCardanoAddress network $ Sdk.getAddress defaultChangeAddr
-  absorbBalancingError $
-    Balancing.makeTransactionBodyAutoBalance eraInMode sysstart eraHistory pparams pools inputsMap txBody changeAddr witOverrides
-      where
-        absorbBalancingError (Left e)  = throwM $ BalancingError $ T.pack $ show e
-        absorbBalancingError (Right a) = pure a
+  _ <- D.traceM ("Body: " ++ (show txBody))
+  balancing <- liftIO . evaluate $ Balancing.makeTransactionBodyAutoBalance eraInMode sysstart eraHistory pparams pools inputsMap txBody changeAddr witOverrides
+  absorbBalancingError balancing
+    where
+      absorbBalancingError (Left e)  = throwM $ BalancingError $ T.pack $ show e
+      absorbBalancingError (Right a) = pure a
 
 estimateTxFee
   :: (MonadThrow f, MonadIO f)

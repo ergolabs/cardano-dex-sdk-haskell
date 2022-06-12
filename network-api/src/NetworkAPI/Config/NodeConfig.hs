@@ -10,3 +10,9 @@ data NodeConfig = NodeConfig
   } deriving Generic
 
 instance D.FromDhall NodeConfig
+
+data NodeSocketConfig = NodeSocketConfig
+  { nodeSocketPath :: FilePath
+  } deriving (Generic, Show)
+
+instance D.FromDhall NodeSocketConfig

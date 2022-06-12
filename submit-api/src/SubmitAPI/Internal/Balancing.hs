@@ -6,6 +6,7 @@ import           Data.Bifunctor (first)
 import           Data.Map       (Map)
 import qualified Data.Map       as Map
 import           Data.Maybe     (fromMaybe)
+import qualified Debug.Trace    as D
 import           Data.Set       (Set)
 
 import Cardano.Api
@@ -41,7 +42,6 @@ makeTransactionBodyAutoBalance eraInMode systemstart history pparams
             --TODO: think about the size of the change output
             -- 1,2,4 or 8 bytes?
         }
-
     exUnitsMap <- first TxBodyErrorValidityInterval $
                     evaluateTransactionExecutionUnits
                       eraInMode
@@ -50,20 +50,17 @@ makeTransactionBodyAutoBalance eraInMode systemstart history pparams
                       pparams
                       utxo
                       txbody0
-
-    exUnitsMap' <-
+    exUnitsMap'' <-
       case Map.mapEither id exUnitsMap of
         (failures, exUnitsMap') ->
           handleExUnitsErrors
             (txScriptValidityToScriptValidity (txScriptValidity txbodycontent))
             failures
             exUnitsMap'
-
+    let exUnitsMap' = Map.map (\(ExecutionUnits executionSteps executionMemory) -> ExecutionUnits (executionSteps + 4096 + 864) executionMemory) exUnitsMap''
     let txbodycontent1 = substituteExecutionUnits exUnitsMap' txbodycontent
-
     explicitTxFees <- first (const TxBodyErrorByronEraNotSupported) $
                         txFeesExplicitInEra era'
-
     -- Make a txbody that we will use for calculating the fees. For the purpose
     -- of fees we just need to make a txbody of the right size in bytes. We do
     -- not need the right values for the fee or change output. We use
@@ -81,11 +78,9 @@ makeTransactionBodyAutoBalance eraInMode systemstart history pparams
                               TxOutDatumNone
                             ]
                }
-
     let nkeys = fromMaybe (estimateTransactionKeyWitnessCount txbodycontent1)
                           mnkeys
         fee   = evaluateTransactionFee pparams txbody1 nkeys 0 --TODO: byron keys
-
     -- Make a txbody for calculating the balance. For this the size of the tx
     -- does not matter, instead it's just the values of the fee and outputs.
     -- Here we do not want to start with any change output, since that's what
@@ -95,8 +90,9 @@ makeTransactionBodyAutoBalance eraInMode systemstart history pparams
                  txFee = TxFeeExplicit explicitTxFees fee
                }
 
+    _ <- D.traceM ("txbody2: " ++ (show txbody2))
     let balance = evaluateTransactionBalance pparams poolids utxo txbody2
-
+    _ <- D.traceM ("Balance: " ++ (show balance))
     mapM_ (`checkMinUTxOValue` pparams) $ txOuts txbodycontent1
 
     -- check if the balance is positive or negative
@@ -162,9 +158,13 @@ makeTransactionBodyAutoBalance eraInMode systemstart history pparams
    checkMinUTxOValue txout@(TxOut _ v _) pparams' = do
      minUTxO  <- first TxBodyErrorMinUTxOMissingPParams
                    $ calculateMinimumUTxO era txout pparams'
+     _ <- D.traceM ("minUTxO:" ++ (show minUTxO))
+     _ <- D.traceM ("txout in check min value:" ++ (show txout))
+     _ <- D.traceM ("txOutValueToLovelace v:" ++ (show (txOutValueToLovelace v)))
+     _ <- D.traceM ("selectLovelace minUTxO:" ++ (show (selectLovelace minUTxO)))
      if txOutValueToLovelace v >= selectLovelace minUTxO
      then Right ()
-     else Left TxBodyErrorByronEraNotSupported --todo fix: TxOutInAnyEra
+     else D.traceM ("Min value not preserved in utxo:" ++ (show txout)) >> Left TxBodyErrorByronEraNotSupported
 
 substituteExecutionUnits :: Map ScriptWitnessIndex ExecutionUnits
                          -> TxBodyContent BuildTx era

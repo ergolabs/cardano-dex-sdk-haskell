@@ -9,7 +9,11 @@ packages:
   network-api
   submit-api
   datum-keeper-client
+  test
   algebra-core
+
+package plutarch
+  flags: +development
 
 -- You never, ever, want this.
 write-ghc-environment-files: never

@@ -75,6 +75,10 @@ library
     exposed-modules: NetworkAPI.Types
                      NetworkAPI.Config.NodeConfig
                      NetworkAPI.Service
+                     NetworkAPI.Config.NodesSocketsConfig
+                     NetworkAPI.Node.Types
+                     NetworkAPI.Node.Network
+                     NetworkAPI.PoolsConnector
 
     build-depends:
         rio==0.1.21.0,
@@ -95,15 +99,20 @@ library
         either,
         aeson-gadt-th,
         some,
+        network-mux,
         dependent-sum-template,
         containers,
         freer-simple,
         extra,
         cardano-api,
+        base16-bytestring,
         text,
         dhall,
         quickblue,
         retry,
         hlog,
         network-mux,
-        exceptions
+        exceptions,
+        dex-core,
+        unix,
+        stm

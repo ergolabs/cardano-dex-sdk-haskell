@@ -115,3 +115,4 @@ library
                  ,  exceptions
                  ,  hlog
                  ,  algebra-core
+                 ,  ergo-hs-common

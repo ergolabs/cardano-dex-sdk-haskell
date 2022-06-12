@@ -7,13 +7,15 @@ module ErgoDex.Amm.PoolActions
 import           Control.Exception.Base
 import           Control.Monad          (when)
 import qualified Data.Set               as Set
+import qualified Data.List               as L
+import qualified Debug.Trace            as D
 import           Data.Bifunctor
 import           Data.Tuple
 
-import           Ledger          (Redeemer(..), PaymentPubKeyHash(..), pubKeyHashAddress)
+import           Ledger          (Redeemer(..), PaymentPubKeyHash(..), pubKeyHashAddress, CurrencySymbol, TokenName)
 import qualified Ledger.Interval as Interval
 import qualified Ledger.Ada      as Ada
-import           Ledger.Value    (assetClassValue)
+import           Ledger.Value    (assetClassValue, Value (getValue), flattenValue)
 import           PlutusTx        (toBuiltinData)
 import           Ledger.Scripts  (Validator)
 
@@ -26,10 +28,15 @@ import qualified ErgoDex.Contracts.Proxy.Order as O
 import           ErgoDex.Contracts.Types
 import           ErgoDex.PValidators
 import           CardanoTx.Models
+import Data.Aeson (Value(Bool))
+import qualified Data.ByteString as List
+import Data.List (find)
+import Data.Maybe (isJust)
 
 data OrderExecErr
   = PriceTooHigh
   | PoolMismatch PoolId PoolId
+  | NegativeCandidate TxOutCandidate
   deriving (Show)
 
 instance Exception OrderExecErr
@@ -61,7 +68,7 @@ mkOrderInputs action orderValidator (PoolIn poolOut) (OrderIn orderOut) =
     orderIn   = mkScriptTxIn orderOut orderValidator (Redeemer $ toBuiltinData $ O.OrderRedeemer poolIx orderIx 1 O.Apply)
 
 runSwap' :: PaymentPubKeyHash -> Confirmed Swap -> (FullTxOut, Pool) -> Either OrderExecErr (TxCandidate, Predicted Pool)
-runSwap' executorPkh (Confirmed swapOut Swap{swapExFee=ExFeePerToken{..}, ..}) (poolOut, pool) = do
+runSwap' executorPkh (Confirmed swapOut swap@Swap{swapExFee=ExFeePerToken{..}, ..}) (poolOut, pool) = do
   let
     inputs = mkOrderInputs P.Swap swapValidator (PoolIn poolOut) (OrderIn swapOut)
 
@@ -99,11 +106,19 @@ runSwap' executorPkh (Confirmed swapOut Swap{swapExFee=ExFeePerToken{..}, ..}) (
       , txCandidateValidRange   = Interval.always
       , txCandidateSigners      = mempty
       }
-
-  Right (txCandidate, pp)
+  _ <- D.traceM ("nextPoolOut:" ++ show nextPoolOut)    
+  _ <- D.traceM ("pool:" ++ show pool)
+  _ <- D.traceM ("poolOut" ++ show poolOut)
+  _ <- D.traceM ("swap:" ++ show swap)
+  _ <- D.traceM ("swapOut:" ++ show swapOut)
+  _ <- D.traceM ("quoteOutput:" ++ show quoteOutput)
+  _ <- D.traceM ("rewardOut:" ++ show rewardOut)
+  case checkOuputsForNegativeValue [nextPoolOut, rewardOut] of
+    Nothing -> Right (txCandidate, pp)
+    Just err -> Left err
 
 runDeposit' :: PaymentPubKeyHash -> Confirmed Deposit -> (FullTxOut, Pool) -> Either OrderExecErr (TxCandidate, Predicted Pool)
-runDeposit' executorPkh (Confirmed depositOut Deposit{..}) (poolOut, pool@Pool{..}) = do
+runDeposit' executorPkh (Confirmed depositOut deposit@Deposit{..}) (poolOut, pool@Pool{..}) = do
   when (depositPoolId /= poolId) (Left $ PoolMismatch depositPoolId poolId)
   let
     inputs = mkOrderInputs P.Deposit depositValidator (PoolIn poolOut) (OrderIn depositOut)
@@ -121,6 +136,12 @@ runDeposit' executorPkh (Confirmed depositOut Deposit{..}) (poolOut, pool@Pool{.
       | isAda poolCoinX = (inX - retagAmount exFee - retagAmount adaCollateral, inY)
       | isAda poolCoinY = (inX, inY - retagAmount exFee - retagAmount adaCollateral)
       | otherwise       = (inX, inY)
+
+    lq = unAmount poolLiquidity
+    poolX  = unAmount poolReservesX
+    poolY  = unAmount poolReservesY
+    minByX = (unAmount netInX) * lq `div` poolX
+    minByY = (unAmount netInY) * lq `div` poolY
 
     (unlockedLq, (Amount changeX, Amount changeY)) = rewardLp pool (netInX, netInY)
 
@@ -158,10 +179,23 @@ runDeposit' executorPkh (Confirmed depositOut Deposit{..}) (poolOut, pool@Pool{.
       , txCandidateSigners      = mempty
       }
 
-  Right (txCandidate, pp)
+  _ <- D.traceM ("lq:" ++ show lq)
+  _ <- D.traceM ("poolX:" ++ show poolX)
+  _ <- D.traceM ("poolY:" ++ show poolY)
+  _ <- D.traceM ("minByX:" ++ show minByX)
+  _ <- D.traceM ("minByY:" ++ show minByY)
+  _ <- D.traceM ("unlockedLq:" ++ show unlockedLq)
+  _ <- D.traceM ("minByX == minByY:" ++ show (minByX == minByY))
+  _ <- D.traceM ("alignmentValue:" ++ show alignmentValue)
+  _ <- D.traceM ("depositOut:" ++ show (depositOut))
+  _ <- D.traceM ("deposit:" ++ show deposit)
+
+  case checkOuputsForNegativeValue [nextPoolOut, rewardOut] of
+    Nothing -> Right (txCandidate, pp)
+    Just err -> Left err
 
 runRedeem' :: PaymentPubKeyHash -> Confirmed Redeem -> (FullTxOut, Pool) -> Either OrderExecErr (TxCandidate, Predicted Pool)
-runRedeem' executorPkh (Confirmed redeemOut Redeem{..}) (poolOut, pool@Pool{..}) = do
+runRedeem' executorPkh (Confirmed redeemOut redeem@Redeem{..}) (poolOut, pool@Pool{..}) = do
   when (redeemPoolId /= poolId) (Left $ PoolMismatch redeemPoolId poolId)
   let
     inputs = mkOrderInputs P.Redeem redeemValidator (PoolIn poolOut) (OrderIn redeemOut)
@@ -195,4 +229,19 @@ runRedeem' executorPkh (Confirmed redeemOut Redeem{..}) (poolOut, pool@Pool{..})
       , txCandidateSigners      = mempty
       }
 
-  Right (txCandidate, pp)
+  _ <- D.traceM ("redeemOut:" ++ show redeemOut)
+  _ <- D.traceM ("redeem:" ++ show redeem)
+  _ <- D.traceM ("rewardOut:" ++ show rewardOut)
+  _ <- D.traceM ("rewardOut:" ++ show nextPoolOut)
+
+  case checkOuputsForNegativeValue [nextPoolOut, rewardOut] of
+    Nothing -> Right (txCandidate, pp)
+    Just err -> Left err
+
+checkOuputsForNegativeValue :: [TxOutCandidate] -> Maybe OrderExecErr
+checkOuputsForNegativeValue candidates = NegativeCandidate `fmap` L.find checkForNegative candidates
+  where
+    checkForNegative :: TxOutCandidate -> Bool
+    checkForNegative TxOutCandidate{..} = let
+      values = flattenValue txOutCandidateValue
+      in isJust (L.find (\(_, _, amount) -> amount < 0) values)

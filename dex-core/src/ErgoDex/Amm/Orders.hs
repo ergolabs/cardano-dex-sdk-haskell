@@ -5,6 +5,7 @@ import           Data.Bifunctor
 import           Control.Monad    (when)
 import           Data.Function
 import           Data.Aeson       (FromJSON(..), ToJSON(..), object, (.=), (.:))
+import qualified Debug.Trace      as D
 import qualified Data.Aeson       as JSON
 import           GHC.Generics     (Generic)
 
@@ -158,10 +159,16 @@ data Order a = Order
   , orderAction :: OrderAction a
   } deriving (Show, Eq)
 
-data AnyOrder = forall a . AnyOrder
+data AnyOrder = forall a . (Show a) => AnyOrder
   { anyOrderPoolId :: PoolId
   , anyOrderAction :: OrderAction a
   }
+
+instance Show AnyOrder where
+  show AnyOrder{..} = case anyOrderAction of
+    SwapAction swap       -> show anyOrderPoolId ++ ". " ++ show swap
+    DepositAction deposit -> show anyOrderPoolId ++ ". " ++ show deposit
+    RedeemAction redeem   -> show anyOrderPoolId ++ ". " ++ show redeem
 
 data ActionKind = SwapK | DepositK | RedeemK
   deriving (Show, Eq, Generic, ToJSON, FromJSON)

@@ -4,6 +4,10 @@ import RIO
 
 import qualified PlutusTx.Prelude    as PlutusTx
 import           Ledger              (PubKeyHash(..))
+import qualified Data.ByteString.Base16  as Hex
+import           Data.Aeson
+import qualified Data.Text.Encoding      as T
+import qualified Cardano.Api         as Crypto
 import qualified Cardano.Api         as C
 import           Cardano.Api.Shelley
 import           Algebra.Natural
