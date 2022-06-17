@@ -24,6 +24,7 @@ import ErgoDex.Contracts.Types
 import ErgoDex.Contracts.Proxy.Swap
 import ErgoDex.Contracts.Proxy.Deposit
 import ErgoDex.Contracts.Proxy.Redeem
+import GHC.RTS.Flags (TraceFlags(timestamp))
 
 data Swap = Swap
   { swapPoolId      :: PoolId
@@ -159,40 +160,44 @@ data Order a = Order
   } deriving (Show, Eq)
 
 data AnyOrder = forall a . AnyOrder
-  { anyOrderPoolId :: PoolId
-  , anyOrderAction :: OrderAction a
+  { anyOrderPoolId    :: PoolId
+  , anyOrderTimestamp :: Integer
+  , anyOrderAction    :: OrderAction a
   }
 
 data ActionKind = SwapK | DepositK | RedeemK
   deriving (Show, Eq, Generic, ToJSON, FromJSON)
 
 instance ToJSON AnyOrder where
-  toJSON (AnyOrder poolId (SwapAction swap)) =
-    object [ "kind"   .= SwapK
-           , "poolId" .= poolId
-           , "action" .= toJSON swap
+  toJSON (AnyOrder poolId timestamp (SwapAction swap)) =
+    object [ "kind"      .= SwapK
+           , "poolId"    .= poolId
+           , "action"    .= toJSON swap
+           , "timestamp" .= timestamp
            ]
-  toJSON (AnyOrder poolId (DepositAction deposit)) =
+  toJSON (AnyOrder poolId timestamp (DepositAction deposit)) =
     object [ "kind"   .= DepositK
            , "poolId" .= poolId
            , "action" .= toJSON deposit
+           , "timestamp" .= timestamp
            ]
-  toJSON (AnyOrder poolId (RedeemAction redeem)) =
+  toJSON (AnyOrder poolId timestamp (RedeemAction redeem)) =
     object [ "kind"   .= RedeemK
            , "poolId" .= poolId
            , "action" .= toJSON redeem
+           , "timestamp" .= timestamp
            ]
 
 instance FromJSON AnyOrder where
   parseJSON (JSON.Object v) = do
     kind   <- v .: "kind"
     poolId <- v .: "poolId"
-
+    timestamp <- v.: "timestamp"
     let actionP = v .: "action"
 
     case kind of
-      SwapK    -> actionP >>= JSON.parseJSON & fmap (AnyOrder poolId . SwapAction)
-      DepositK -> actionP >>= JSON.parseJSON & fmap (AnyOrder poolId . DepositAction)
-      RedeemK  -> actionP >>= JSON.parseJSON & fmap (AnyOrder poolId . RedeemAction)
+      SwapK    -> actionP >>= JSON.parseJSON & fmap (AnyOrder poolId timestamp . SwapAction)
+      DepositK -> actionP >>= JSON.parseJSON & fmap (AnyOrder poolId timestamp . DepositAction)
+      RedeemK  -> actionP >>= JSON.parseJSON & fmap (AnyOrder poolId timestamp . RedeemAction)
 
   parseJSON _ = fail "expected an object"

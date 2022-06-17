@@ -133,3 +133,4 @@ test-suite dex-core-tests
     , plutarch
     , dex-core==0.1.0.0
     , cardano-tx==0.1.0.0
+    , time
