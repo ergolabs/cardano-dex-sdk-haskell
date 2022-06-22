@@ -24,12 +24,15 @@ import           ErgoDex.Amm.Pool
 import qualified ErgoDex.Contracts.Pool        as P
 import qualified ErgoDex.Contracts.Proxy.Order as O
 import           ErgoDex.Contracts.Types
-import           ErgoDex.PValidators
+import ErgoDex.PValidators
+    ( depositValidator, poolValidator, redeemValidator, swapValidator )
 import           CardanoTx.Models
 
 data OrderExecErr
   = PriceTooHigh
   | PoolMismatch PoolId PoolId
+  | EmptyPool PoolId
+  | PoolNotFoundInFinalTx PoolId
   deriving (Show)
 
 instance Exception OrderExecErr
