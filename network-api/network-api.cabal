@@ -75,6 +75,10 @@ library
     exposed-modules: NetworkAPI.Types
                      NetworkAPI.Config.NodeConfig
                      NetworkAPI.Service
+                     NetworkAPI.Config.NodesSocketsConfig
+                     NetworkAPI.Node.Types
+                     NetworkAPI.Node.Network
+                     NetworkAPI.PoolsConnector
 
     build-depends:
         rio==0.1.21.0,
@@ -106,4 +110,7 @@ library
         retry,
         hlog,
         network-mux,
-        exceptions
+        exceptions,
+        dex-core,
+        unix,
+        stm

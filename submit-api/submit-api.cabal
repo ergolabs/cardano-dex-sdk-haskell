@@ -114,7 +114,9 @@ library
         cardano-binary,
         strict-containers,
         transformers,
-        array
+        array,
+        dex-core,
+        hlog
         -- free-er==0.1.0.0
 
 test-suite submit-api-tests
@@ -146,8 +148,9 @@ test-suite submit-api-tests
     , containers==0.6.2.1
     , random-strings
     , plutus-core
+    , dex-core
     , plutarch
-    , submit-api==0.1.0.0
-    , cardano-tx==0.1.0.0
-    , network-api==0.1.0.0
-    , wallet-api==0.1.0.0
+    , cardano-tx
+    , network-api
+    , wallet-api
+    , submit-api

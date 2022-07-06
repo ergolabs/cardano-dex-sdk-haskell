@@ -30,7 +30,7 @@ import Data.Functor ((<&>))
 import Control.Monad (when)
 
 newtype PoolId = PoolId { unPoolId :: Coin Nft }
-  deriving (Show, Eq, Generic)
+  deriving (Show, Eq, Generic, Ord)
   deriving newtype (FromJSON, ToJSON)
 
 data PoolFee = PoolFee

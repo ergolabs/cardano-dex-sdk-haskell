@@ -7,13 +7,14 @@ module ErgoDex.Amm.PoolActions
 import           Control.Exception.Base
 import           Control.Monad          (when)
 import qualified Data.Set               as Set
+import qualified Data.List               as L
 import           Data.Bifunctor
 import           Data.Tuple
 
-import           Ledger          (Redeemer(..), PaymentPubKeyHash(..), pubKeyHashAddress)
+import           Ledger          (Redeemer(..), PaymentPubKeyHash(..), pubKeyHashAddress, CurrencySymbol, TokenName)
 import qualified Ledger.Interval as Interval
 import qualified Ledger.Ada      as Ada
-import           Ledger.Value    (assetClassValue)
+import           Ledger.Value    (assetClassValue, Value (getValue), flattenValue)
 import           PlutusTx        (toBuiltinData)
 import           Ledger.Scripts  (Validator)
 
@@ -26,10 +27,15 @@ import qualified ErgoDex.Contracts.Proxy.Order as O
 import           ErgoDex.Contracts.Types
 import           ErgoDex.PValidators
 import           CardanoTx.Models
+import Data.Aeson (Value(Bool))
+import qualified Data.ByteString as List
+import Data.List (find)
+import Data.Maybe (isJust)
 
 data OrderExecErr
   = PriceTooHigh
   | PoolMismatch PoolId PoolId
+  | NegativeCandidate TxOutCandidate
   deriving (Show)
 
 instance Exception OrderExecErr
@@ -100,7 +106,9 @@ runSwap' executorPkh (Confirmed swapOut Swap{swapExFee=ExFeePerToken{..}, ..}) (
       , txCandidateSigners      = mempty
       }
 
-  Right (txCandidate, pp)
+  case checkOuputsForNegativeValue [nextPoolOut, rewardOut] of
+    Nothing -> Right (txCandidate, pp)
+    Just err -> Left err
 
 runDeposit' :: PaymentPubKeyHash -> Confirmed Deposit -> (FullTxOut, Pool) -> Either OrderExecErr (TxCandidate, Predicted Pool)
 runDeposit' executorPkh (Confirmed depositOut Deposit{..}) (poolOut, pool@Pool{..}) = do
@@ -158,7 +166,9 @@ runDeposit' executorPkh (Confirmed depositOut Deposit{..}) (poolOut, pool@Pool{.
       , txCandidateSigners      = mempty
       }
 
-  Right (txCandidate, pp)
+  case checkOuputsForNegativeValue [nextPoolOut, rewardOut] of
+    Nothing -> Right (txCandidate, pp)
+    Just err -> Left err
 
 runRedeem' :: PaymentPubKeyHash -> Confirmed Redeem -> (FullTxOut, Pool) -> Either OrderExecErr (TxCandidate, Predicted Pool)
 runRedeem' executorPkh (Confirmed redeemOut Redeem{..}) (poolOut, pool@Pool{..}) = do
@@ -195,4 +205,14 @@ runRedeem' executorPkh (Confirmed redeemOut Redeem{..}) (poolOut, pool@Pool{..})
       , txCandidateSigners      = mempty
       }
 
-  Right (txCandidate, pp)
+  case checkOuputsForNegativeValue [nextPoolOut, rewardOut] of
+    Nothing -> Right (txCandidate, pp)
+    Just err -> Left err
+
+checkOuputsForNegativeValue :: [TxOutCandidate] -> Maybe OrderExecErr
+checkOuputsForNegativeValue candidates = NegativeCandidate `fmap` L.find checkForNegative candidates
+  where
+    checkForNegative :: TxOutCandidate -> Bool
+    checkForNegative TxOutCandidate{..} = let
+      values = flattenValue txOutCandidateValue
+      in isJust (L.find (\(_, _, amount) -> amount < 0) values)

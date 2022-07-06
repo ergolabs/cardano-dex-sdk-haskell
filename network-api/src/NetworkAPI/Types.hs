@@ -18,3 +18,6 @@ data SystemEnv = SystemEnv
   , pools      :: Set PoolId
   , eraHistory :: EraHistory CardanoMode
   }
+
+instance Show SystemEnv where
+  show _ = "SystemEnv" -- todo: only for debug
