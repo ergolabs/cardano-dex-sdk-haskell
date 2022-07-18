@@ -191,10 +191,8 @@ data TxAssemblyError
   | SignerNotFound P.PubKeyHash
   deriving (Show, Exception)
 
-absorbError :: (MonadThrow f, MonadIO f) => Either Interop.ToCardanoError a -> f a
-absorbError (Left err) = do
-  liftIO . print $ "The err has occurred: " ++ show err
-  throwM $ adaptInteropError err
+absorbError :: (MonadThrow f) => Either Interop.ToCardanoError a -> f a
+absorbError (Left err) = throwM $ adaptInteropError err
 absorbError (Right vl) = pure vl
 
 adaptInteropError :: Interop.ToCardanoError -> TxAssemblyError
